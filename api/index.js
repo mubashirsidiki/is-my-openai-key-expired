@@ -1,27 +1,346 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
   // Only handle GET requests
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  try {
-    // Read and serve the index.html file from public directory
-    const filePath = join(__dirname, '..', 'public', 'index.html');
-    const html = readFileSync(filePath, 'utf8');
-    
-    res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    return res.status(200).send(html);
-  } catch (error) {
-    console.error('Error serving index.html:', error);
-    return res.status(500).json({ error: 'Failed to serve page' });
-  }
-}
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Is My OpenAI Key Expired?</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 500px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 40px;
+            color: #ffffff;
+            letter-spacing: -0.5px;
+        }
+
+        .form-group {
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 16px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            border-radius: 8px;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: all 0.2s ease;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #4a4a4a;
+            background: #1f1f1f;
+        }
+
+        input[type="text"]::placeholder {
+            color: #666;
+        }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            background: #ffffff;
+            color: #0a0a0a;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        button:hover:not(:disabled) {
+            background: #e0e0e0;
+            transform: translateY(-1px);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result.success {
+            background: #1a2e1a;
+            border: 1px solid #2a4a2a;
+            color: #4ade80;
+        }
+
+        .result.error {
+            background: #2e1a1a;
+            border: 1px solid #4a2a4a;
+            color: #f87171;
+        }
+
+        .result.info {
+            background: #1a1a2e;
+            border: 1px solid #2a2a4a;
+            color: #60a5fa;
+        }
+
+        .chat-test {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #1a1a1a;
+            border: 1px solid #2a2a2a;
+            display: none;
+        }
+
+        .chat-test.show {
+            display: block;
+        }
+
+        .chat-test h3 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 15px;
+            color: #ffffff;
+        }
+
+        .chat-message {
+            padding: 14px 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            word-wrap: break-word;
+        }
+
+        .chat-message.user {
+            background: #2a2a2a;
+            color: #e0e0e0;
+            border-left: 3px solid #4a4a4a;
+        }
+
+        .chat-message.assistant {
+            background: #1a2e1a;
+            color: #4ade80;
+            border: 1px solid #2a4a2a;
+            border-left: 3px solid #4ade80;
+        }
+
+        .chat-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #666;
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Is My OpenAI Key Expired?</h1>
+        <form id="checkForm">
+            <div class="form-group">
+                <input 
+                    type="text" 
+                    id="apiKey" 
+                    placeholder="Enter your OpenAI API key (sk-...)" 
+                    autocomplete="off"
+                    required
+                >
+            </div>
+            <button type="submit" id="submitBtn">Check Key</button>
+        </form>
+        <div id="result" class="result"></div>
+        <div id="chatTest" class="chat-test">
+            <h3>Chat Completion Test</h3>
+            <div id="chatMessages"></div>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('checkForm');
+        const apiKeyInput = document.getElementById('apiKey');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultDiv = document.getElementById('result');
+        const chatTestDiv = document.getElementById('chatTest');
+        const chatMessagesDiv = document.getElementById('chatMessages');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const apiKey = apiKeyInput.value.trim();
+            
+            if (!apiKey) {
+                showResult('Please enter an API key', 'error');
+                return;
+            }
+
+            if (!apiKey.startsWith('sk-')) {
+                showResult('Invalid API key format. OpenAI keys start with "sk-"', 'error');
+                return;
+            }
+
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span>Checking...';
+            resultDiv.classList.remove('show');
+            chatTestDiv.classList.remove('show');
+            chatMessagesDiv.innerHTML = '';
+
+            try {
+                const response = await fetch('/api/check-key', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ key: apiKey }),
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const chatResult = await testChatCompletion(apiKey);
+                    if (chatResult === true) {
+                        showResult('✅ Your OpenAI key is valid and working! Both key validation and chat completion tests passed.', 'success');
+                    } else if (chatResult === 'quota') {
+                        showResult('✅ Your OpenAI key is valid! However, your account has no credits/quota remaining. Please add credits to use the API.', 'info');
+                    } else {
+                        showResult('⚠️ Key validation passed, but chat completion failed. Your key may have limited permissions.', 'error');
+                    }
+                } else {
+                    showResult(data.error || 'An error occurred while checking your key', 'error');
+                }
+            } catch (error) {
+                showResult('Network error: Could not connect to the server. Please try again.', 'error');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Check Key';
+            }
+        });
+
+        async function testChatCompletion(apiKey) {
+            chatTestDiv.classList.add('show');
+            chatMessagesDiv.innerHTML = '';
+            addChatMessage('user', 'Hi, how are you?');
+
+            const loadingMsg = document.createElement('div');
+            loadingMsg.className = 'chat-message assistant';
+            loadingMsg.innerHTML = '<span class="loading"></span>Getting response...';
+            chatMessagesDiv.appendChild(loadingMsg);
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ key: apiKey }),
+                });
+
+                const data = await response.json();
+                loadingMsg.remove();
+
+                if (response.ok) {
+                    addChatMessage('assistant', data.message || 'No response received');
+                    return true;
+                } else {
+                    const isQuotaError = data.errorType === 'quota_exceeded';
+                    const errorMsg = data.error || 'Failed to get response';
+                    
+                    if (isQuotaError) {
+                        addChatMessage('assistant', \`⚠️ \${errorMsg}\`);
+                        return 'quota';
+                    } else {
+                        addChatMessage('assistant', \`Error: \${errorMsg}\`);
+                        return false;
+                    }
+                }
+            } catch (error) {
+                loadingMsg.remove();
+                addChatMessage('assistant', \`Network error: \${error.message}\`);
+                return false;
+            }
+        }
+
+        function addChatMessage(role, content) {
+            const messageDiv = document.createElement('div');
+            const label = document.createElement('div');
+            label.className = 'chat-label';
+            label.textContent = role === 'user' ? 'You' : 'Assistant';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = \`chat-message \${role}\`;
+            contentDiv.textContent = content;
+
+            messageDiv.appendChild(label);
+            messageDiv.appendChild(contentDiv);
+            chatMessagesDiv.appendChild(messageDiv);
+        }
+
+        function showResult(message, type) {
+            resultDiv.textContent = message;
+            resultDiv.className = \`result \${type} show\`;
+        }
+    </script>
+</body>
+</html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(200).send(html);
+}
